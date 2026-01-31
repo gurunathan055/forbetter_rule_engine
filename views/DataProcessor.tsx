@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Rule, Department, BatchProcessingResult, RuleSeverity } from '../types';
+import { Rule, Department, BatchProcessingResult, RuleSeverity, UserRole } from '../types';
 import { processBatch } from '../components/RuleEngine';
 import { generateRulesFromData, analyzeAnomalies } from '../services/geminiService';
 import { 
@@ -15,11 +15,13 @@ import {
   Loader2,
   Sparkles,
   X,
-  DatabaseZap
+  DatabaseZap,
+  Lock
 } from 'lucide-react';
 
 interface Props {
   rules: Rule[];
+  userRole: UserRole;
 }
 
 const SAMPLE_DATA = [
@@ -29,12 +31,14 @@ const SAMPLE_DATA = [
   { "id": "INV-102", "expiry_date": "2025-05-01", "item": "Fresh Milk 1L" }
 ];
 
-const DataProcessor: React.FC<Props> = ({ rules }) => {
+const DataProcessor: React.FC<Props> = ({ rules, userRole }) => {
   const [rawData, setRawData] = useState<string>(JSON.stringify(SAMPLE_DATA, null, 2));
   const [results, setResults] = useState<BatchProcessingResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+
+  const canAuthor = userRole === UserRole.SUPERADMIN || userRole === UserRole.MANAGER;
 
   const handleRun = () => {
     setIsProcessing(true);
@@ -52,6 +56,7 @@ const DataProcessor: React.FC<Props> = ({ rules }) => {
   };
 
   const handleAiAnalyze = async () => {
+    if (!canAuthor) return;
     if (results.length === 0) return;
     setIsAiLoading(true);
     const flatResults = results.flatMap(r => r.results.filter(v => !v.isPassed));
@@ -61,14 +66,14 @@ const DataProcessor: React.FC<Props> = ({ rules }) => {
   };
 
   const handleSuggestRules = async () => {
+    if (!canAuthor) return;
     setIsAiLoading(true);
     try {
       const parsed = JSON.parse(rawData);
       const sample = Array.isArray(parsed) ? parsed[0] : parsed;
       const suggested = await generateRulesFromData(sample, Department.PROCUREMENT);
-      // We could add these suggested rules to state here if we wanted
       console.log("Suggested Rules:", suggested);
-      alert("AI suggested " + suggested.length + " rules based on your schema. Check console for details (Mock implementation).");
+      alert("AI suggested " + suggested.length + " rules based on your schema. Review results in your console.");
     } catch (e) {
       alert("Please provide valid JSON to use AI suggestions.");
     }
@@ -76,7 +81,7 @@ const DataProcessor: React.FC<Props> = ({ rules }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 animate-in fade-in slide-in-from-left-4 duration-500">
       {/* Left: Input */}
       <div className="space-y-6">
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -85,17 +90,23 @@ const DataProcessor: React.FC<Props> = ({ rules }) => {
               <FileJson className="text-indigo-600" /> Data Payload Input
             </h3>
             <div className="flex gap-2">
-              <button 
-                onClick={handleSuggestRules}
-                disabled={isAiLoading}
-                className="text-xs flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50"
-              >
-                {isAiLoading ? <Loader2 className="animate-spin" size={14} /> : <BrainCircuit size={14} />} 
-                AI Suggest Rules
-              </button>
+              {canAuthor ? (
+                <button 
+                  onClick={handleSuggestRules}
+                  disabled={isAiLoading}
+                  className="text-xs flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50 shadow-sm border border-indigo-100"
+                >
+                  {isAiLoading ? <Loader2 className="animate-spin" size={14} /> : <BrainCircuit size={14} />} 
+                  AI Suggest Rules
+                </button>
+              ) : (
+                <div className="text-[10px] flex items-center gap-1.5 bg-slate-50 text-slate-400 px-3 py-1.5 rounded-lg border border-slate-100">
+                  <Lock size={12} /> AI Tools Restricted
+                </div>
+              )}
               <button 
                 onClick={() => setRawData('')}
-                className="text-slate-400 hover:text-rose-600 transition-colors"
+                className="text-slate-400 hover:text-rose-600 transition-colors p-1"
               >
                 <Trash2 size={18} />
               </button>
@@ -110,13 +121,13 @@ const DataProcessor: React.FC<Props> = ({ rules }) => {
               placeholder='[ { "id": 1, ... } ]'
             />
             <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-              <span className="text-[10px] text-indigo-400 font-bold bg-indigo-950/80 px-2 py-1 rounded">JSON Format</span>
+              <span className="text-[10px] text-indigo-400 font-bold bg-indigo-950/80 px-2 py-1 rounded border border-indigo-800">SCHEMA: JSON</span>
             </div>
           </div>
           <button 
             onClick={handleRun}
             disabled={isProcessing}
-            className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 transition-all disabled:bg-indigo-400"
+            className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-900/10 flex items-center justify-center gap-2 transition-all disabled:bg-indigo-400"
           >
             {isProcessing ? <Loader2 className="animate-spin" /> : <Play size={20} />} 
             Run Engine Evaluation
@@ -124,19 +135,19 @@ const DataProcessor: React.FC<Props> = ({ rules }) => {
         </div>
 
         {aiAnalysis && (
-          <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-8 rounded-2xl text-white shadow-xl relative overflow-hidden group">
+          <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-8 rounded-2xl text-white shadow-xl relative overflow-hidden group border border-indigo-500/20">
             <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
               <Sparkles size={80} />
             </div>
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex justify-between items-start mb-4 relative z-10">
               <h4 className="text-xl font-bold flex items-center gap-2">
                 <BrainCircuit className="text-indigo-400" /> AI Strategic Insights
               </h4>
-              <button onClick={() => setAiAnalysis(null)} className="text-indigo-400 hover:text-white">
+              <button onClick={() => setAiAnalysis(null)} className="text-indigo-400 hover:text-white transition-colors">
                 <X size={18} />
               </button>
             </div>
-            <div className="prose prose-invert text-indigo-100 whitespace-pre-wrap leading-relaxed text-sm">
+            <div className="relative z-10 prose prose-invert text-indigo-100 whitespace-pre-wrap leading-relaxed text-sm">
               {aiAnalysis}
             </div>
           </div>
@@ -145,21 +156,23 @@ const DataProcessor: React.FC<Props> = ({ rules }) => {
 
       {/* Right: Results */}
       <div className="space-y-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm min-h-[500px]">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm min-h-[500px] flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <ClipboardCheck className="text-emerald-600" /> Evaluation Results
             </h3>
             {results.length > 0 && (
               <div className="flex gap-2">
-                <button 
-                  onClick={handleAiAnalyze}
-                  disabled={isAiLoading}
-                  className="flex items-center gap-2 text-xs font-bold bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:bg-indigo-300"
-                >
-                  {isAiLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} AI Deep Scan
-                </button>
-                <button className="p-2 text-slate-400 hover:text-slate-600 border border-slate-200 rounded-lg">
+                {canAuthor && (
+                  <button 
+                    onClick={handleAiAnalyze}
+                    disabled={isAiLoading}
+                    className="flex items-center gap-2 text-xs font-bold bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:bg-indigo-300 shadow-md transition-all"
+                  >
+                    {isAiLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} AI Deep Scan
+                  </button>
+                )}
+                <button className="p-2 text-slate-400 hover:text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
                   <Download size={18} />
                 </button>
               </div>
@@ -167,15 +180,15 @@ const DataProcessor: React.FC<Props> = ({ rules }) => {
           </div>
 
           {results.length === 0 ? (
-            <div className="h-[400px] flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl">
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl">
               <DatabaseZap size={48} className="mb-4 opacity-20" />
-              <p>No processed data yet.</p>
-              <p className="text-xs">Paste your data payload and click 'Run Engine'</p>
+              <p className="font-medium">Ready for Data Processing</p>
+              <p className="text-xs">Paste your payload and click 'Run Engine' to see evaluations.</p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6 overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">
               {results.map((res, i) => (
-                <div key={i} className="border border-slate-100 rounded-xl overflow-hidden">
+                <div key={i} className="border border-slate-100 rounded-xl overflow-hidden hover:border-indigo-200 transition-colors shadow-sm">
                   <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b border-slate-100">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Record #{i + 1}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
@@ -186,7 +199,7 @@ const DataProcessor: React.FC<Props> = ({ rules }) => {
                   </div>
                   <div className="p-4 space-y-3">
                     {res.results.map((ruleRes, j) => (
-                      <div key={j} className="flex gap-3 items-start">
+                      <div key={j} className="flex gap-3 items-start animate-in fade-in duration-300" style={{ animationDelay: `${j * 100}ms` }}>
                         {ruleRes.isPassed ? (
                           <CheckCircle2 className="text-emerald-500 shrink-0 mt-0.5" size={16} />
                         ) : (
@@ -196,11 +209,11 @@ const DataProcessor: React.FC<Props> = ({ rules }) => {
                           }`} size={16} />
                         )}
                         <div>
-                          <p className={`text-sm font-medium ${ruleRes.isPassed ? 'text-slate-600' : 'text-slate-900'}`}>
+                          <p className={`text-sm font-bold ${ruleRes.isPassed ? 'text-slate-600' : 'text-slate-900'}`}>
                             {ruleRes.ruleName}
                           </p>
                           {!ruleRes.isPassed && (
-                            <p className="text-xs text-slate-500 mt-0.5 italic">{ruleRes.message}</p>
+                            <p className="text-xs text-slate-500 mt-1 italic leading-relaxed">{ruleRes.message}</p>
                           )}
                         </div>
                       </div>

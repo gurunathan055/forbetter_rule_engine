@@ -13,7 +13,10 @@ import {
   X, 
   LogOut,
   ShieldAlert,
-  Users
+  Users,
+  UserPlus,
+  ShieldCheck,
+  UserCog
 } from 'lucide-react';
 
 const INITIAL_RULES: Rule[] = [
@@ -52,11 +55,39 @@ const INITIAL_RULES: Rule[] = [
   }
 ];
 
+const MOCK_USERS: User[] = [
+  {
+    id: 'admin-001',
+    username: 'supadmin',
+    name: 'System Superadmin',
+    email: 'admin@nexusbre.com',
+    role: UserRole.SUPERADMIN,
+    avatar: 'https://ui-avatars.com/api/?name=Super+Admin&background=4f46e5&color=fff'
+  },
+  {
+    id: 'mgr-002',
+    username: 'jdoe',
+    name: 'Jane Doe',
+    email: 'jane.doe@fmcg.com',
+    role: UserRole.MANAGER,
+    avatar: 'https://ui-avatars.com/api/?name=Jane+Doe&background=6366f1&color=fff'
+  },
+  {
+    id: 'view-003',
+    username: 'rsmith',
+    name: 'Robert Smith',
+    email: 'robert.smith@analytics.com',
+    role: UserRole.VIEWER,
+    avatar: 'https://ui-avatars.com/api/?name=Robert+Smith&background=94a3b8&color=fff'
+  }
+];
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'rules' | 'processor' | 'admin'>('dashboard');
   const [rules, setRules] = useState<Rule[]>(INITIAL_RULES);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [users, setUsers] = useState<User[]>(MOCK_USERS);
 
   // Persistence logic
   useEffect(() => {
@@ -80,9 +111,23 @@ const App: React.FC = () => {
   const updateRule = (updated: Rule) => setRules(rules.map(r => r.id === updated.id ? updated : r));
   const deleteRule = (id: string) => setRules(rules.filter(r => r.id !== id));
 
+  const updateUserRole = (userId: string, newRole: UserRole) => {
+    const updatedUsers = users.map(u => u.id === userId ? { ...u, role: newRole } : u);
+    setUsers(updatedUsers);
+    // If we updated the current user, update the active user state too
+    if (user && user.id === userId) {
+      const updatedUser = { ...user, role: newRole };
+      setUser(updatedUser);
+      localStorage.setItem('nexus_auth_user', JSON.stringify(updatedUser));
+    }
+  };
+
   if (!user) {
     return <Login onLogin={handleLogin} />;
   }
+
+  const isSuperAdmin = user.role === UserRole.SUPERADMIN;
+  const isManager = user.role === UserRole.MANAGER || isSuperAdmin;
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -120,7 +165,7 @@ const App: React.FC = () => {
             {isSidebarOpen && <span>Data Processor</span>}
           </button>
 
-          {user.role === UserRole.SUPERADMIN && (
+          {isSuperAdmin && (
             <button 
               onClick={() => setActiveTab('admin')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'admin' ? 'bg-indigo-800 text-white shadow-lg' : 'text-indigo-200 hover:bg-indigo-800'}`}
@@ -170,7 +215,8 @@ const App: React.FC = () => {
                 {activeTab === 'admin' ? 'Administrative Control' : activeTab}
               </h2>
               <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                user.role === UserRole.SUPERADMIN ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'
+                user.role === UserRole.SUPERADMIN ? 'bg-rose-100 text-rose-700' : 
+                user.role === UserRole.MANAGER ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'
               }`}>
                 {user.role}
               </span>
@@ -187,7 +233,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="p-8">
-          {activeTab === 'dashboard' && <Dashboard rules={rules} />}
+          {activeTab === 'dashboard' && <Dashboard rules={rules} user={user} />}
           {activeTab === 'rules' && (
             <RulesManager 
               userRole={user.role}
@@ -197,43 +243,116 @@ const App: React.FC = () => {
               onDelete={deleteRule} 
             />
           )}
-          {activeTab === 'processor' && <DataProcessor rules={rules} />}
-          {activeTab === 'admin' && user.role === UserRole.SUPERADMIN && (
-            <div className="space-y-6">
+          {activeTab === 'processor' && <DataProcessor rules={rules} userRole={user.role} />}
+          {activeTab === 'admin' && isSuperAdmin && (
+            <div className="space-y-6 animate-in fade-in duration-500">
               <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 className="text-xl font-bold text-slate-800 mb-2">User Access Management</h3>
-                <p className="text-slate-500 mb-6">Centralized control for system roles and permissions.</p>
-                
-                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                  <ShieldAlert className="text-rose-500" size={24} />
+                <div className="flex justify-between items-center mb-6">
                   <div>
-                    <p className="font-bold text-slate-800">Security Policy Active</p>
-                    <p className="text-sm text-slate-500">Only Superadmins can modify rules for critical production lines.</p>
+                    <h3 className="text-xl font-bold text-slate-800">User Access Management</h3>
+                    <p className="text-slate-500">Manage organizational members, assign roles, and audit access permissions.</p>
+                  </div>
+                  <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-semibold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
+                    <UserPlus size={18} /> Invite User
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-4 p-4 bg-indigo-50 rounded-xl border border-indigo-100 mb-8">
+                  <ShieldCheck className="text-indigo-600" size={24} />
+                  <div>
+                    <p className="font-bold text-indigo-900">Enterprise RBAC Policy Enabled</p>
+                    <p className="text-sm text-indigo-700">Role changes are logged in the audit trail and take effect immediately across all sessions.</p>
                   </div>
                 </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="pb-4 font-semibold text-slate-600">User</th>
+                        <th className="pb-4 font-semibold text-slate-600">Email Address</th>
+                        <th className="pb-4 font-semibold text-slate-600">Assigned Role</th>
+                        <th className="pb-4 font-semibold text-slate-600">Security Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {users.map(u => (
+                        <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-4">
+                            <div className="flex items-center gap-3">
+                              <img src={u.avatar} className="w-8 h-8 rounded-lg" alt="" />
+                              <div>
+                                <p className="font-bold text-slate-800">{u.name}</p>
+                                <p className="text-xs text-slate-400 font-mono tracking-tight">@{u.username}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 text-sm text-slate-600">{u.email}</td>
+                          <td className="py-4">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              u.role === UserRole.SUPERADMIN ? 'bg-rose-100 text-rose-700' : 
+                              u.role === UserRole.MANAGER ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="py-4">
+                            <div className="flex gap-2">
+                              {Object.values(UserRole).map(role => (
+                                <button 
+                                  key={role}
+                                  onClick={() => updateUserRole(u.id, role)}
+                                  className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
+                                    u.role === role 
+                                      ? 'bg-indigo-600 text-white shadow-md' 
+                                      : 'bg-white border border-slate-200 text-slate-400 hover:border-indigo-300 hover:text-indigo-600'
+                                  }`}
+                                >
+                                  {role}
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
-                    <h4 className="font-bold text-indigo-900 mb-2">Simulation: Role Switching</h4>
-                    <p className="text-sm text-indigo-700 mb-4">Temporarily change your role to test permissions.</p>
-                    <div className="flex gap-2">
-                       {[UserRole.SUPERADMIN, UserRole.MANAGER, UserRole.VIEWER].map(r => (
-                         <button 
-                           key={r}
-                           onClick={() => {
-                             const updatedUser = { ...user, role: r };
-                             setUser(updatedUser);
-                             localStorage.setItem('nexus_auth_user', JSON.stringify(updatedUser));
-                           }}
-                           className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${
-                             user.role === r ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100'
-                           }`}
-                         >
-                           {r}
-                         </button>
-                       ))}
+                 <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-white shadow-xl">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="p-3 bg-rose-500/20 rounded-xl">
+                        <ShieldAlert className="text-rose-500" size={24} />
+                      </div>
+                      <h4 className="font-bold text-xl">System Audit Summary</h4>
                     </div>
+                    <div className="space-y-4 text-sm text-slate-400">
+                      <div className="flex justify-between border-b border-slate-800 pb-2">
+                        <span>Total Users</span>
+                        <span className="font-bold text-white">{users.length}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-800 pb-2">
+                        <span>Privileged Accounts</span>
+                        <span className="font-bold text-indigo-400">{users.filter(u => u.role !== UserRole.VIEWER).length}</span>
+                      </div>
+                      <div className="flex justify-between pb-2">
+                        <span>Security Compliance</span>
+                        <span className="font-bold text-emerald-400">98% Verified</span>
+                      </div>
+                    </div>
+                 </div>
+
+                 <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-4">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
+                      <UserCog size={32} className="text-slate-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-lg">Identity Configuration</h4>
+                      <p className="text-sm text-slate-500 px-8">Federated identity and external SSO providers can be managed from the Cloud Console.</p>
+                    </div>
+                    <button className="text-indigo-600 font-bold text-sm hover:underline">View Integration Docs</button>
                  </div>
               </div>
             </div>

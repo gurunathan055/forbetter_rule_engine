@@ -1,17 +1,18 @@
 
 import React from 'react';
-import { Rule, Department, RuleSeverity } from '../types';
+import { Rule, Department, RuleSeverity, User, UserRole } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line
+  PieChart, Pie, Cell
 } from 'recharts';
-import { ShieldCheck, AlertTriangle, Activity, Database } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Activity, Database, User as UserIcon } from 'lucide-react';
 
 interface Props {
   rules: Rule[];
+  user: User;
 }
 
-const Dashboard: React.FC<Props> = ({ rules }) => {
+const Dashboard: React.FC<Props> = ({ rules, user }) => {
   const deptData = Object.values(Department).map(dept => ({
     name: dept,
     count: rules.filter(r => r.department === dept).length,
@@ -31,12 +32,31 @@ const Dashboard: React.FC<Props> = ({ rules }) => {
     { label: 'Evaluation Speed', value: '1.2ms', icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50' },
   ];
 
+  const isSuperAdmin = user.role === UserRole.SUPERADMIN;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      {/* Welcome Message */}
+      <div className="bg-gradient-to-r from-indigo-900 to-indigo-700 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
+        <div className="absolute right-0 top-0 h-full w-1/3 opacity-10 flex items-center justify-center">
+          <UserIcon size={180} />
+        </div>
+        <div className="relative z-10">
+          <h2 className="text-3xl font-bold mb-2">Welcome back, {user.name.split(' ')[0]}!</h2>
+          <p className="text-indigo-100/80 max-w-xl">
+            {user.role === UserRole.SUPERADMIN 
+              ? "You have full administrative privileges. Use the Control module to manage system access."
+              : user.role === UserRole.MANAGER 
+              ? "Your rule authoring privileges are active. Production quality metrics are trending upward."
+              : "Read-only access enabled. You are viewing real-time compliance metrics for all departments."}
+          </p>
+        </div>
+      </div>
+
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, idx) => (
-          <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
             <div className={`${stat.bg} ${stat.color} p-4 rounded-xl`}>
               <stat.icon size={24} />
             </div>
@@ -55,7 +75,7 @@ const Dashboard: React.FC<Props> = ({ rules }) => {
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={deptData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                 <XAxis dataKey="name" stroke="#64748b" />
                 <YAxis stroke="#64748b" />
                 <Tooltip 
@@ -117,8 +137,8 @@ const Dashboard: React.FC<Props> = ({ rules }) => {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {rules.slice(0, 5).map(rule => (
-                <tr key={rule.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-4 font-medium text-slate-700">{rule.name}</td>
+                <tr key={rule.id} className="hover:bg-slate-50 transition-colors group">
+                  <td className="py-4 font-medium text-slate-700 group-hover:text-indigo-600 transition-colors">{rule.name}</td>
                   <td className="py-4">
                     <span className="px-3 py-1 bg-slate-100 rounded-full text-xs font-semibold text-slate-600">
                       {rule.department}
