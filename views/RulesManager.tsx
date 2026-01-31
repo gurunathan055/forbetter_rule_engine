@@ -1,19 +1,23 @@
 
 import React, { useState } from 'react';
-import { Rule, Department, RuleSeverity } from '../types';
-import { Plus, Trash2, Edit3, Save, X, ToggleLeft, ToggleRight, Sparkles } from 'lucide-react';
+import { Rule, Department, RuleSeverity, UserRole } from '../types';
+import { Plus, Trash2, Edit3, Save, X, ToggleLeft, ToggleRight, ShieldAlert, Lock } from 'lucide-react';
 
 interface Props {
+  userRole: UserRole;
   rules: Rule[];
   onAdd: (rule: Rule) => void;
   onUpdate: (rule: Rule) => void;
   onDelete: (id: string) => void;
 }
 
-const RulesManager: React.FC<Props> = ({ rules, onAdd, onUpdate, onDelete }) => {
+const RulesManager: React.FC<Props> = ({ userRole, rules, onAdd, onUpdate, onDelete }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
+  const canManage = userRole === UserRole.SUPERADMIN || userRole === UserRole.MANAGER;
+  const isViewer = userRole === UserRole.VIEWER;
+
   const [formData, setFormData] = useState<Partial<Rule>>({
     name: '',
     description: '',
@@ -25,6 +29,7 @@ const RulesManager: React.FC<Props> = ({ rules, onAdd, onUpdate, onDelete }) => 
   });
 
   const handleSave = () => {
+    if (!canManage) return;
     if (editingId) {
       onUpdate({ ...formData, id: editingId } as Rule);
       setEditingId(null);
@@ -40,6 +45,7 @@ const RulesManager: React.FC<Props> = ({ rules, onAdd, onUpdate, onDelete }) => 
   };
 
   const handleEdit = (rule: Rule) => {
+    if (!canManage) return;
     setFormData(rule);
     setEditingId(rule.id);
     setIsAdding(true);
@@ -52,18 +58,23 @@ const RulesManager: React.FC<Props> = ({ rules, onAdd, onUpdate, onDelete }) => 
           <h3 className="text-xl font-bold text-slate-800">Operational Repository</h3>
           <p className="text-slate-500">Manage all logic gates and validation rules across the supply chain.</p>
         </div>
-        {!isAdding && (
+        {!isAdding && canManage && (
           <button 
             onClick={() => { setIsAdding(true); setEditingId(null); setFormData({ department: Department.PROCUREMENT, severity: RuleSeverity.INFO, isActive: true }); }}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-all"
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-all shadow-lg shadow-indigo-900/10"
           >
             <Plus size={18} /> Add New Rule
           </button>
         )}
+        {isViewer && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold border border-slate-200">
+            <Lock size={14} /> Read-only Access
+          </div>
+        )}
       </div>
 
-      {isAdding && (
-        <div className="bg-white p-8 rounded-2xl border-2 border-indigo-100 shadow-xl space-y-6">
+      {isAdding && canManage && (
+        <div className="bg-white p-8 rounded-2xl border-2 border-indigo-100 shadow-xl space-y-6 animate-in slide-in-from-top-4 duration-300">
           <div className="flex justify-between items-center">
             <h4 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
               <Plus size={20} /> {editingId ? 'Edit Rule Configuration' : 'Create New Logic Gate'}
@@ -131,6 +142,7 @@ const RulesManager: React.FC<Props> = ({ rules, onAdd, onUpdate, onDelete }) => 
                 {Object.values(RuleSeverity).map(s => (
                   <button
                     key={s}
+                    type="button"
                     onClick={() => setFormData({ ...formData, severity: s })}
                     className={`px-4 py-1.5 rounded-full text-xs font-bold capitalize transition-all ${formData.severity === s ? 'ring-2 ring-indigo-500 ring-offset-1 bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}
                   >
@@ -142,8 +154,8 @@ const RulesManager: React.FC<Props> = ({ rules, onAdd, onUpdate, onDelete }) => 
           </div>
 
           <div className="pt-4 flex justify-end gap-3">
-            <button onClick={() => setIsAdding(false)} className="px-6 py-2 rounded-xl text-slate-500 hover:bg-slate-50 font-medium">Cancel</button>
-            <button onClick={handleSave} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded-xl font-semibold">
+            <button onClick={() => setIsAdding(false)} className="px-6 py-2 rounded-xl text-slate-500 hover:bg-slate-50 font-medium transition-colors">Cancel</button>
+            <button onClick={handleSave} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded-xl font-semibold transition-all shadow-lg shadow-indigo-900/10">
               <Save size={18} /> {editingId ? 'Update Rule' : 'Deploy Rule'}
             </button>
           </div>
@@ -152,8 +164,8 @@ const RulesManager: React.FC<Props> = ({ rules, onAdd, onUpdate, onDelete }) => 
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {rules.map(rule => (
-          <div key={rule.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow relative overflow-hidden flex flex-col">
-            <div className={`absolute top-0 left-0 w-1.5 h-full ${
+          <div key={rule.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow relative overflow-hidden flex flex-col group">
+            <div className={`absolute top-0 left-0 w-1.5 h-full transition-all group-hover:w-2 ${
               rule.severity === RuleSeverity.CRITICAL ? 'bg-rose-500' : 
               rule.severity === RuleSeverity.WARNING ? 'bg-amber-500' : 'bg-blue-500'
             }`}></div>
@@ -163,31 +175,37 @@ const RulesManager: React.FC<Props> = ({ rules, onAdd, onUpdate, onDelete }) => 
                 {rule.department}
               </span>
               <div className="flex gap-2">
-                <button onClick={() => handleEdit(rule)} className="text-slate-400 hover:text-indigo-600"><Edit3 size={16} /></button>
-                <button onClick={() => onDelete(rule.id)} className="text-slate-400 hover:text-rose-600"><Trash2 size={16} /></button>
+                {canManage && (
+                  <>
+                    <button onClick={() => handleEdit(rule)} className="text-slate-400 hover:text-indigo-600 transition-colors p-1"><Edit3 size={16} /></button>
+                    <button onClick={() => onDelete(rule.id)} className="text-slate-400 hover:text-rose-600 transition-colors p-1"><Trash2 size={16} /></button>
+                  </>
+                )}
+                {isViewer && <Lock size={14} className="text-slate-300" />}
               </div>
             </div>
 
             <h4 className="font-bold text-slate-800 mb-2 truncate">{rule.name}</h4>
-            <p className="text-sm text-slate-500 line-clamp-2 mb-4 flex-grow">{rule.description}</p>
+            <p className="text-sm text-slate-500 line-clamp-2 mb-4 flex-grow leading-relaxed">{rule.description}</p>
             
-            <div className="bg-slate-50 rounded-lg p-3 mb-4">
+            <div className="bg-slate-50 rounded-lg p-3 mb-4 border border-slate-100">
               <p className="text-[10px] text-slate-400 font-mono mb-1 uppercase tracking-wider">Logic Condition</p>
-              <code className="text-xs text-indigo-600 font-mono block overflow-x-auto whitespace-nowrap">
+              <code className="text-xs text-indigo-600 font-mono block overflow-x-auto whitespace-nowrap scrollbar-hide">
                 {rule.condition}
               </code>
             </div>
 
             <div className="flex justify-between items-center pt-4 border-t border-slate-100">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tight ${
                 rule.severity === RuleSeverity.CRITICAL ? 'bg-rose-50 text-rose-600' :
                 rule.severity === RuleSeverity.WARNING ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'
               }`}>
                 {rule.severity}
               </span>
               <button 
-                onClick={() => onUpdate({ ...rule, isActive: !rule.isActive })}
-                className="text-slate-400 hover:text-indigo-600"
+                disabled={!canManage}
+                onClick={() => canManage && onUpdate({ ...rule, isActive: !rule.isActive })}
+                className={`transition-all ${canManage ? 'text-slate-400 hover:text-indigo-600' : 'opacity-50 cursor-not-allowed text-slate-200'}`}
               >
                 {rule.isActive ? <ToggleRight className="text-emerald-500" size={24} /> : <ToggleLeft size={24} />}
               </button>

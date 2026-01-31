@@ -13,13 +13,28 @@ export enum RuleSeverity {
   CRITICAL = 'critical'
 }
 
+export enum UserRole {
+  SUPERADMIN = 'superadmin',
+  MANAGER = 'manager',
+  VIEWER = 'viewer'
+}
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  role: UserRole;
+  name: string;
+  avatar?: string;
+}
+
 export interface Rule {
   id: string;
   name: string;
   description: string;
   department: Department;
-  condition: string; // JavaScript expression or simplified DSL
-  action: string;    // Action description or transformation logic
+  condition: string;
+  action: string;
   severity: RuleSeverity;
   isActive: boolean;
   createdAt: string;
