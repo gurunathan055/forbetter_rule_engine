@@ -1,0 +1,5 @@
+{
+  "name": "FMCG Nexus BRE",
+  "description": "A robust Business Rules Engine (BRE) designed for FMCG supply chains, enabling plug-and-play data validation, business logic enforcement, and compliance tracking across procurement, production, warehousing, and distribution.",
+  "requestFramePermissions": []
+}
